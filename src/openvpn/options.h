@@ -155,6 +155,15 @@ struct remote_list
   struct remote_entry *array[CONNECTION_LIST_SIZE];
 };
 
+#ifdef ENABLE_VLAN_TAGGING
+enum vlan_acceptable_frames
+{
+  VAF_ONLY_VLAN_TAGGED,
+  VAF_ONLY_UNTAGGED_OR_PRIORITY,
+  VAF_ALL,
+};
+#endif
+
 struct remote_host_store
 {
 # define RH_HOST_LEN 80
@@ -597,6 +606,12 @@ struct options
   /* Keying Material Exporters [RFC 5705] */
   const char *keying_material_exporter_label;
   int keying_material_exporter_length;
+#endif
+
+#ifdef ENABLE_VLAN_TAGGING
+  bool vlan_tagging;
+  enum vlan_acceptable_frames vlan_accept;
+  uint16_t vlan_pvid;
 #endif
 };
 
