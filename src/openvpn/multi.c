@@ -6,6 +6,7 @@
  *             packet compression.
  *
  *  Copyright (C) 2002-2017 OpenVPN Technologies, Inc. <sales@openvpn.net>
+ *  Copyright (C) 2010      Fabian Knittel <fabian.knittel@lettink.de>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -49,6 +50,7 @@
 
 #include "forward-inline.h"
 #include "pf-inline.h"
+#include "vlan.h"
 
 /*#define MULTI_DEBUG_EVENT_LOOP*/
 
@@ -2255,6 +2257,12 @@ multi_bcast(struct multi_context *m,
                     }
                 }
 #endif /* ifdef ENABLE_PF */
+#ifdef ENABLE_VLAN_TAGGING
+                if (vid != 0 && vid != mi->context.options.vlan_pvid)
+                {
+                    continue;
+                }
+#endif
                 multi_add_mbuf(m, mi, mb);
             }
         }
@@ -2632,9 +2640,21 @@ multi_process_incoming_link(struct multi_context *m, struct multi_instance *inst
             {
 #ifdef ENABLE_VLAN_TAGGING
                 uint16_t vid = 0;
-#else
+                if (m->top.options.vlan_tagging)
+                {
+                    if (vlan_filter_incoming_8021q_tag(&c->c2.to_tun))
+                    {
+                        /* Drop VLAN-tagged frame. */
+                        c->c2.to_tun.len = 0;
+                    }
+                    else
+                    {
+                        vid = c->options.vlan_pvid;
+                    }
+                }
+#else  /* ifdef ENABLE_VLAN_TAGGING */
                 const uint16_t vid = 0;
-#endif
+#endif /* ifdef ENABLE_VLAN_TAGGING */
 #ifdef ENABLE_PF
                 struct mroute_addr edest;
                 mroute_addr_reset(&edest);
@@ -2763,6 +2783,17 @@ multi_process_incoming_tun(struct multi_context *m, const unsigned int mpp_flags
         {
             return true;
         }
+
+#ifdef ENABLE_VLAN_TAGGING
+        if (dev_type == DEV_TYPE_TAP && m->top.options.vlan_tagging)
+        {
+            if ((vid = vlan_remove_8021q_tag(&m->top,
+                                             &m->top.c2.buf)) == -1)
+            {
+                return false;
+            }
+        }
+#endif
 
         /*
          * Route an incoming tun/tap packet to
